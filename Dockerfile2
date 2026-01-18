@@ -1,0 +1,54 @@
+FROM jenkins/jenkins:lts-jdk21
+
+USER root
+
+# Install prerequisites, Docker CLI and python3-pip
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        lsb-release \
+        wget \
+        curl \
+        vim \
+        ca-certificates \
+        gnupg \
+        python3 \
+        python3-pip && \
+    install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg | \
+        gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
+        > /etc/apt/sources.list.d/docker.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends docker-ce-cli && \
+    # Clean up
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Install Maven
+ARG MAVEN_VERSION=3.9.12
+RUN cd /opt && \
+    wget -q https://dlcdn.apache.org/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz && \
+    tar -xzf apache-maven-${MAVEN_VERSION}-bin.tar.gz && \
+    mv apache-maven-${MAVEN_VERSION} maven && \
+    rm apache-maven-${MAVEN_VERSION}-bin.tar.gz
+
+ENV MAVEN_HOME=/opt/maven
+ENV PATH=$MAVEN_HOME/bin:$PATH
+
+# Install Ansible via pip (with Debian 13+ PEP-668 workaround)
+RUN pip3 install --no-cache-dir --break-system-packages \
+    ansible \
+    ansible-core \
+    docker \
+    kubernetes \
+    jmespath \
+    passlib \
+    pywinrm
+
+# Optional: create basic ansible configuration
+RUN mkdir -p /etc/ansible && \
+    echo '[local]\nlocalhost ansible_connection=local' > /etc/ansible/hosts && \
+    chmod -R 775 /etc/ansible
+
+USER jenkins
